@@ -12,6 +12,11 @@ class AriaClient:
         if not auth.AriaAuth.check():
             print("No existing pairing found. Starting pairing process...")
             auth.AriaAuth.pair()
+            # check again after pairing 30 seconds
+            await asyncio.sleep(30)
+            if not auth.AriaAuth.check():
+                raise RuntimeError("Pairing failed or was not completed.")
+            print("Pairing successful.")
 
         else:
             print("Existing pairing found.")
@@ -28,4 +33,8 @@ class AriaClient:
         # Placeholder for stopping streaming logic
         pass
     
+if __name__ == "__main__":
+    import asyncio
 
+    client = AriaClient()
+    asyncio.run(client.pair())
