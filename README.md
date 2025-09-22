@@ -1,2 +1,2 @@
 # project-aria-desktop
-Repo for desktop app for project aria thesis
+Desktop app for project aria thesis
