@@ -1,6 +1,7 @@
 import subprocess
 
 class AriaAuth:
+    """Handles authentication and pairing with Aria devices."""
     @staticmethod
     def check() -> bool:
         """Return True if pairing already exists."""
