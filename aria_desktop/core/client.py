@@ -65,7 +65,7 @@ class AriaClient:
         # Placeholder for data fetching logic
         pass
 
-    async def start_steaming(self):
+    async def start_streaming(self):
         # Placeholder for starting streaming logic
         pass
 
@@ -74,7 +74,5 @@ class AriaClient:
         pass
     
 if __name__ == "__main__":
-    import asyncio
-
     client = AriaClient()
     asyncio.run(client.pair())

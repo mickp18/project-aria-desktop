@@ -26,19 +26,19 @@ def update_iptables() -> None:
     ]
     print("Running the following command to update iptables:")
     print(update_iptables_cmd)
-    subprocess.run(update_iptables_cmd)
+    subprocess.run(update_iptables_cmd, check=True)
 
 
 @contextmanager
 def ctrl_c_handler(signal_handler=None):
-    class ctrl_c_state:
+    class CtrlCState:
         def __init__(self):
             self._caught_ctrl_c = False
 
         def __bool__(self):
             return self._caught_ctrl_c
 
-    state = ctrl_c_state()
+    state = CtrlCState()
 
     def _handler(sig, frame):
         state._caught_ctrl_c = True
