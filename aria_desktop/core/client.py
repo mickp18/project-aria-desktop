@@ -1,16 +1,17 @@
 import aria.sdk as aria
 import auth
 from typing import Optional
-import ..utils.handler
+import utils.handler as handler
 import sys
 import asyncio
+from ..utils.config import config
 
 
 class AriaClient:
-    def __init__(self, connection: str = "wifi", ip_address: Optional[str] = None, update_iptables: bool = False):
-        self.connection = connection
-        # self.ip_address = ip_address
-        self.update_iptables = update_iptables
+    def __init__(self):
+        self.connection = config.get('aria', 'connection_type', fallback='wifi')
+        self.ip_address = config.get('aria', 'ip_address', fallback=None)
+        self.update_iptables = config.getboolean('aria', 'update_iptables', fallback=True)
         
          #  Optional: Set SDK's log level to Trace or Debug for more verbose logs. Defaults to Info
         aria.set_log_level(aria.Level.Info)
@@ -20,14 +21,14 @@ class AriaClient:
         self.device_client_config = aria.DeviceClientConfig()
 
         
-    async def connect(self, ip_address: Optional[str] = None):
+    async def connect(self):
         """Connect to the Aria device using the specified connection method."""
         try:
             if self.update_iptables and sys.platform.startswith("linux"):
                 handler.update_iptables()
         
-            if ip_address:
-                self.device_client_config.ip_v4_address = ip_address
+            if self.ip_address:
+                self.device_client_config.ip_v4_address = self.ip_address
 
             self.device_client.set_client_config(self.device_client_config)
 
