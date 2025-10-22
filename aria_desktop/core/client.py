@@ -1,7 +1,7 @@
 import aria.sdk as aria
 import auth
 from typing import Optional
-import handler
+import ..utils.handler
 import sys
 import asyncio
 
