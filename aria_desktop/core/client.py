@@ -37,10 +37,10 @@ class AriaClient:
             device = self.device_client.connect()
 
         except Exception as e:
-            print(f"Failed to connect to device: {e}")
+            logger.error(f"Failed to connect to device: {e}")
             raise
         
-        print(f"Connected to device: {device}")
+        logger.info(f"Connected to device: {device}")
 
         return device
     
@@ -60,14 +60,16 @@ class AriaClient:
             print("Pairing successful.")
 
         else:
-            print("Existing pairing found.")
+            logger.info("Existing pairing found.")
 
     def get_status(self, device: aria.Device )-> aria.DeviceStatus:
+        """Retrieve the current status of the device."""
         logger.info(f"Retrieving status from device")
         status = device.status
         return status
     
     def get_battery_level(self, device: aria.Device) -> int:
+        """Retrieve the battery level of the device."""
         status = self.get_status(device)
         battery_level = status.battery_level
         # logger.debug(f"Battery level: {battery_level}%")

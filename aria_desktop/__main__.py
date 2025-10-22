@@ -18,13 +18,17 @@ async def main():
         
         if device:
             logger.info("Successfully connected to the Aria device.")
-            # Next, you can add the logic to start streaming here
+          
             battery_level = client.get_battery_level(device)
             logger.info(f"Battery level : {battery_level}%")
+
             if battery_level < 20:
                 logger.warning("Battery level is below 20%. Please charge the device soon.")
             else :
                 logger.info("Battery level is sufficient, ready to go.")
+
+                # start streaming
+                
             
     except Exception as e:
         logger.critical(f"An error occurred during application startup: {e}")
