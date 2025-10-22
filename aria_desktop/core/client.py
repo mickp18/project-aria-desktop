@@ -1,11 +1,12 @@
 import aria.sdk as aria
-import auth
 from typing import Optional
-import utils.handler as handler
 import sys
 import asyncio
-from ..utils.config import config
 
+from . import auth
+from ..utils import handler
+from ..utils.config import config
+from ..utils.logger import logger
 
 class AriaClient:
     def __init__(self):
@@ -21,13 +22,14 @@ class AriaClient:
         self.device_client_config = aria.DeviceClientConfig()
 
         
-    async def connect(self):
+    async def connect(self) -> Optional[aria.Device]:
         """Connect to the Aria device using the specified connection method."""
         try:
             if self.update_iptables and sys.platform.startswith("linux"):
                 handler.update_iptables()
         
             if self.ip_address:
+                logger.info(f"Cnnecting to device at IP address: {self.ip_address}")
                 self.device_client_config.ip_v4_address = self.ip_address
 
             self.device_client.set_client_config(self.device_client_config)
@@ -60,7 +62,16 @@ class AriaClient:
         else:
             print("Existing pairing found.")
 
+    def get_status(self, device: aria.Device )-> aria.DeviceStatus:
+        logger.info(f"Retrieving status from device")
+        status = device.status
+        return status
     
+    def get_battery_level(self, device: aria.Device) -> int:
+        status = self.get_status(device)
+        battery_level = status.battery_level
+        # logger.debug(f"Battery level: {battery_level}%")
+        return battery_level
 
     async def fetch_data(self, endpoint: str):
         # Placeholder for data fetching logic
@@ -74,6 +85,3 @@ class AriaClient:
         # Placeholder for stopping streaming logic
         pass
     
-if __name__ == "__main__":
-    client = AriaClient()
-    asyncio.run(client.pair())
