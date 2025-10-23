@@ -1,5 +1,7 @@
 import asyncio
+
 from .core.client import AriaClient
+from .core.streaming_handler import StreamingHandler
 from .utils.logger import logger
 
 async def main():
@@ -11,7 +13,7 @@ async def main():
         client = AriaClient()
         
         # Start the pairing process
-        await client.pair()
+        # await client.pair()
         
         # Connect to the device
         device = await client.connect()
@@ -28,6 +30,8 @@ async def main():
                 logger.info("Battery level is sufficient, ready to go.")
 
                 # start streaming
+                streaming_handler = StreamingHandler(device)
+                streaming_handler.start_streaming()
                 
             
     except Exception as e:
