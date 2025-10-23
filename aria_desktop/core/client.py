@@ -32,6 +32,14 @@ class AriaClient:
                 logger.info(f"Cnnecting to device at IP address: {self.ip_address}")
                 self.device_client_config.ip_v4_address = self.ip_address
 
+            # TODO Make the ip dependent on device connected to          
+            # else: 
+            #     logger.info(f"Check on Aria Companion app for device IP address")
+            #     logger.info("Insert ip address: ")
+            #     ip_input = input().strip()
+            #     self.device_client_config.ip_v4_address = ip_input
+
+
             self.device_client.set_client_config(self.device_client_config)
 
             device = self.device_client.connect()
@@ -75,15 +83,5 @@ class AriaClient:
         # logger.debug(f"Battery level: {battery_level}%")
         return battery_level
 
-    async def fetch_data(self, endpoint: str):
-        # Placeholder for data fetching logic
-        pass
 
-    async def start_streaming(self):
-        # Placeholder for starting streaming logic
-        pass
-
-    async def stop_streaming(self):
-        # Placeholder for stopping streaming logic
-        pass
     
