@@ -35,18 +35,47 @@ class StreamingHandler:
         """Return the streaming manager instance."""
         return self.streaming_manager
     
-    def get_streaming_client(self) -> aria.StreamingClient:
+    def get_streaming_client(self) -> str:
         """Return the streaming client instance."""
         return self.streaming_client
     
     
+    def stop_streaming(self):
+        """Stop the streaming session."""
+        try:
+            logger.info("Unsubscribing from stream")
+            self.streaming_client.unsubscribe()
+            logger.info("Successfully unsubscribed from streaming")
+
+            logger.info("Stopping streaming session...")
+            self.streaming_manager.stop_streaming()
+            logger.info("Streaming session stopped successfully.")
+
+
+        except Exception as e:
+            logger.error(f"Failed to stop streaming: {e}")
+            raise
 
     def start_streaming(self):
-        """Start the streaming session."""
+        """Start the streaming session.Wait untill exit command to stop stream"""
         try:
             logger.info("Starting streaming session...")
             self.streaming_manager.start_streaming()
             logger.info("Streaming session started successfully.")
+
+            self.streaming_client.subscribe()
+
+            with handler.ctrl_c_handler() as ctrl:
+                while not ctrl:
+                    pass  # Keep streaming until Ctrl+C is pressed
+
+            
+            logger.info("exit command recognized")
+            self.stop_streaming()
+
         except Exception as e:
             logger.error(f"Failed to start streaming: {e}")
             raise
+
+
+    
