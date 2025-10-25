@@ -3,13 +3,14 @@ import aria.sdk as aria
 from ..utils import handler
 from ..utils.config import config
 from ..utils.logger import logger
+from ..utils.visualizer import AriaVisualizer, AriaVisualizerStreamingClientObserver
 
 class StreamingHandler:
     def __init__(self, device : aria.Device):
         self.device = device
         self.streaming_manager = self.device.streaming_manager
         self.streaming_client = self.streaming_manager.streaming_client
-
+        self.visualizer = AriaVisualizer()
         # Configure streaming settings
         streaming_config = aria.StreamingConfig()
         logger.info("Configuring streaming settings")
@@ -63,11 +64,19 @@ class StreamingHandler:
             self.streaming_manager.start_streaming()
             logger.info("Streaming session started successfully.")
 
+            # set observer
+            
+            observer = AriaVisualizerStreamingClientObserver(self.visualizer)
+            self.streaming_client.set_streaming_client_observer(observer)
+
             self.streaming_client.subscribe()
+
+
 
             with handler.ctrl_c_handler() as ctrl:
                 while not ctrl:
-                    pass  # Keep streaming until Ctrl+C is pressed
+                    self.visualizer.render_loop()
+                    # pass  # Keep streaming until Ctrl+C is pressed
 
             
             logger.info("exit command recognized")
@@ -76,6 +85,12 @@ class StreamingHandler:
         except Exception as e:
             logger.error(f"Failed to start streaming: {e}")
             raise
+
+    def get_streaming_state(self) -> aria.StreamingState:
+        """Return the current streaming state."""
+        logger.debug("Retrieving current streaming state")
+        print(f"Streaming state: {self.streaming_manager.streaming_state}")
+        return self.streaming_manager.streaming_state
 
 
     
