@@ -18,6 +18,11 @@ class StreamingHandler:
         profile_name = config.get('streaming', 'profile_name', fallback='profile8')
         logger.debug(f"Using streaming profile: {profile_name}")
         
+        # check for usb streaming interface set
+        if config.get('streaming', 'streaming_interface', fallback='wifi') == 'usb':
+            logger.debug("Setting streaming interface to USB")
+            streaming_config.streaming_interface = aria.StreamingInterface.Usb
+
         streaming_config.profile_name = profile_name
         
         streaming_interface = config.get('streaming', 'streaming_interface', fallback='wifi')

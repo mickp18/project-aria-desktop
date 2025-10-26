@@ -28,9 +28,11 @@ class AriaClient:
             if self.update_iptables and sys.platform.startswith("linux"):
                 handler.update_iptables()
         
-            if self.ip_address:
+            if config.get('aria', 'connection_type', fallback='usb') == 'wifi':
                 logger.info(f"Cnnecting to device at IP address: {self.ip_address}")
                 self.device_client_config.ip_v4_address = self.ip_address
+            else:
+                logger.info("Connecting to device via USB")
 
             # TODO Make the ip dependent on device connected to          
             # else: 
