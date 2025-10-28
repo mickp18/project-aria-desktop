@@ -27,6 +27,8 @@ from projectaria_tools.core.sensor_data import (
     AudioDataRecord,
 )
 
+from ..utils.logger import logger
+
 
 NANOSECOND = 1e-9
 
@@ -139,7 +141,7 @@ class AriaVisualizer:
         }
 
     def render_loop(self):
-
+        logger.info("Rendering visualizer plots")
         # Show the plots
         self.plots.show()
 
@@ -158,7 +160,7 @@ class BaseStreamingClientObserver:
     """
 
     def on_image_received(self, image: np.array, record: ImageDataRecord) -> None:
-        pass
+        passg
 
     def on_imu_received(self, samples: Sequence[MotionData], imu_idx: int) -> None:
         pass
@@ -185,6 +187,7 @@ class AriaVisualizerStreamingClientObserver(BaseStreamingClientObserver):
 
     def on_image_received(self, image: np.array, record: ImageDataRecord) -> None:
         # Rotate images to match the orientation of the camera
+        logger.info(f"Image received from camera ID: {record.camera_id}")
         if record.camera_id != aria.CameraId.EyeTrack:
             image = np.rot90(image)
         else:

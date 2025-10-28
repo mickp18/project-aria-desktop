@@ -1,16 +1,18 @@
 import aria.sdk as aria
+import asyncio
 
 from ..utils import handler
 from ..utils.config import config
 from ..utils.logger import logger
-from ..utils.visualizer import AriaVisualizer, AriaVisualizerStreamingClientObserver
+# from ..utils.visualizer import AriaVisualizer, AriaVisualizerStreamingClientObserver
+from  ..utils.simple_observer import SimplePrintObserver
 
 class StreamingHandler:
     def __init__(self, device : aria.Device):
         self.device = device
         self.streaming_manager = self.device.streaming_manager
         self.streaming_client = self.streaming_manager.streaming_client
-        self.visualizer = AriaVisualizer()
+      
         # Configure streaming settings
         streaming_config = aria.StreamingConfig()
         logger.info("Configuring streaming settings")
@@ -60,9 +62,9 @@ class StreamingHandler:
 
         except Exception as e:
             logger.error(f"Failed to stop streaming: {e}")
-            raise
+            # raise
 
-    def start_streaming(self):
+    async def start_streaming(self):
         """Start the streaming session.Wait untill exit command to stop stream"""
         try:
             logger.info("Starting streaming session...")
@@ -70,26 +72,28 @@ class StreamingHandler:
             logger.info("Streaming session started successfully.")
 
             # set observer
-            
-            observer = AriaVisualizerStreamingClientObserver(self.visualizer)
+          
+            observer = SimplePrintObserver()
             self.streaming_client.set_streaming_client_observer(observer)
 
             self.streaming_client.subscribe()
+            logger.info("Subscribed to streaming data successfully.")
+         
 
+            logger.info("Streaming data... Press Ctrl+C to stop.")
+           
 
+            # This will wait forever until the task is cancelled (by Ctrl+C)
+            await asyncio.Event().wait()
 
-            with handler.ctrl_c_handler() as ctrl:
-                while not ctrl:
-                    self.visualizer.render_loop()
-                    # pass  # Keep streaming until Ctrl+C is pressed
-
-            
-            logger.info("exit command recognized")
-            self.stop_streaming()
-
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            logger.info("Stop signal received.")
         except Exception as e:
             logger.error(f"Failed to start streaming: {e}")
-            raise
+        finally:
+            # Ensure we always stop the stream on exit
+            logger.info("Cleaning up and stopping stream...")
+            self.stop_streaming()
 
     def get_streaming_state(self) -> aria.StreamingState:
         """Return the current streaming state."""
