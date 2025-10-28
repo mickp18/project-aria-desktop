@@ -20,7 +20,7 @@ class AsyncEventBus:
     
     async def publish(self, event: Event)  -> None:
         """Publish an event to all subscribers of the event type."""
-        queue = self.topic(event) # get the queue for this event type
+        queue = self.topic(event.event_type) # get the queue for this event type
         await queue.put(event)    # put event in the queue
 
     async def subscribe(self, event_type: str) -> AsyncIterator[Event]:
