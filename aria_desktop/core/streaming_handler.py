@@ -4,15 +4,17 @@ import asyncio
 from ..utils import handler
 from ..utils.config import config
 from ..utils.logger import logger
-# from ..utils.visualizer import AriaVisualizer, AriaVisualizerStreamingClientObserver
-from  ..utils.simple_observer import SimplePrintObserver
+from ..utils.observer import StreamingObserver
+from ..bus import AsyncEventBus
+
 
 class StreamingHandler:
-    def __init__(self, device : aria.Device):
+    def __init__(self, device : aria.Device, event_bus: AsyncEventBus):
         self.device = device
         self.streaming_manager = self.device.streaming_manager
         self.streaming_client = self.streaming_manager.streaming_client
-      
+        self.event_bus = event_bus
+
         # Configure streaming settings
         streaming_config = aria.StreamingConfig()
         logger.info("Configuring streaming settings")
@@ -73,7 +75,7 @@ class StreamingHandler:
 
             # set observer
           
-            observer = SimplePrintObserver()
+            observer = StreamingObserver(bus=self.event_bus)
             self.streaming_client.set_streaming_client_observer(observer)
 
             self.streaming_client.subscribe()

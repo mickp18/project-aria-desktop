@@ -1,5 +1,5 @@
-from utils.logger import logger
-from utils.config import config
+from .logger import logger
+from .config import config
 from ..bus import AsyncEventBus,Event
 
 import aria.sdk as aria
@@ -18,12 +18,23 @@ class StreamingObserver():
     """Streaming observer that handles incoming streaming data."""
 
     def __init__(self, bus: AsyncEventBus):
+        self.rgb_counter = 0
+
         self.bus = bus
 
 
     def on_image_received(self, image: np.array, record: ImageDataRecord) -> None:
-        event = Event(event_type="image_received", payload={"image": image, "record": record})
-        asyncio.create_task(self.bus.publish(event))
+        if record.camera_id == aria.CameraId.Rgb:
+            self.rgb_counter += 1
+            # --- Only send every Nth frame to avoid overwhelming the server ---
+            if self.rgb_counter % 30 == 0: # e.g., send one frame per second
+                logger.debug(f"Queueing RGB frame {self.rgb_counter} for inference")
+
+                # Apply rotation
+                image_to_send = np.rot90(image)
+
+                event = Event(event_type="image_received", payload={"image": image_to_send, "record": record})
+                asyncio.create_task(self.bus.publish(event))
 
     def on_imu_received(self, samples: Sequence[MotionData], imu_idx: int) -> None:
         pass

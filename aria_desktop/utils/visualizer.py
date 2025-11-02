@@ -160,7 +160,7 @@ class BaseStreamingClientObserver:
     """
 
     def on_image_received(self, image: np.array, record: ImageDataRecord) -> None:
-        passg
+        pass
 
     def on_imu_received(self, samples: Sequence[MotionData], imu_idx: int) -> None:
         pass
