@@ -43,6 +43,8 @@ async def yolo_worker(bus: AsyncEventBus, client: httpx.AsyncClient):
                         logger.info(f"--- YOLO Detections ---")
                         for det in detections:
                             logger.info(f"  > Found '{det['class_name']}' (Conf: {det['confidence']:.2f})")
+                    else:
+                        logger.info("No objects detected by YOLO.")
                 else:
                     logger.error(f"YOLO server returned error: {response.status_code}")
 
@@ -65,6 +67,8 @@ async def main():
 
     http_client = httpx.AsyncClient(timeout=5.0) # 5 sec timeout
     
+    loop = asyncio.get_running_loop()
+
     # Start the worker task
     worker_task = asyncio.create_task(yolo_worker(evnet_bus, http_client))
 
@@ -90,7 +94,7 @@ async def main():
                 logger.info("Battery level is sufficient, ready to go.")
 
                 # start streaming
-                streaming_handler = StreamingHandler(device, event_bus=evnet_bus)
+                streaming_handler = StreamingHandler(device, evnet_bus, loop)
                 await streaming_handler.start_streaming()
 
         else:
@@ -108,6 +112,7 @@ async def main():
             worker_task.cancel()
         if http_client:
             await http_client.aclose()
+
         if streaming_handler:
             logger.info("Main ensuring stream is stopped.")
             # This call is synchronous and cleans up

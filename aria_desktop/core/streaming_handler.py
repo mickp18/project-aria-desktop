@@ -9,11 +9,12 @@ from ..bus import AsyncEventBus
 
 
 class StreamingHandler:
-    def __init__(self, device : aria.Device, event_bus: AsyncEventBus):
+    def __init__(self, device : aria.Device, event_bus: AsyncEventBus, loop: asyncio.AbstractEventLoop) -> None :
         self.device = device
         self.streaming_manager = self.device.streaming_manager
         self.streaming_client = self.streaming_manager.streaming_client
         self.event_bus = event_bus
+        self.loop = loop # pass the event loop of the main thread to observer
 
         # Configure streaming settings
         streaming_config = aria.StreamingConfig()
@@ -75,7 +76,7 @@ class StreamingHandler:
 
             # set observer
           
-            observer = StreamingObserver(bus=self.event_bus)
+            observer = StreamingObserver(bus=self.event_bus, loop=self.loop)
             self.streaming_client.set_streaming_client_observer(observer)
 
             self.streaming_client.subscribe()
