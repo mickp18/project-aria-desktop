@@ -65,7 +65,7 @@ class StreamingHandler:
 
         except Exception as e:
             logger.error(f"Failed to stop streaming: {e}")
-            # raise
+            
 
     async def start_streaming(self):
         """Start the streaming session.Wait untill exit command to stop stream"""
