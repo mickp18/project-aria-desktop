@@ -18,7 +18,7 @@ class WebSocketServer:
         self.task : asyncio.Task | None = None
         self.stop = asyncio.Event() 
         self.connected_client = None
-        
+
         # Allow possible multiple clients connections 
         # self.connected_clients = set()
     
@@ -37,7 +37,7 @@ class WebSocketServer:
             client = AriaClient()
             
             # Start the pairing process
-            # await client.pair()
+            await client.pair()
             
             # Connect to the device
             device = await client.connect()
@@ -70,11 +70,11 @@ class WebSocketServer:
             logger.info("Cleaning up tasks and connections...")
             if worker_task:
                 worker_task.cancel()
+                try:
+                    await worker_task # Wait for the worker to actually cancel
+                except asyncio.CancelledError:
+                    pass # Expected
     
-            if streaming_handler:
-                logger.info("Main ensuring stream is stopped.")
-                # This call is synchronous and cleans up
-                streaming_handler.stop_streaming() 
             logger.info("Application has shut down.")
 
     async def handle_start(self):
@@ -102,10 +102,10 @@ class WebSocketServer:
                 self.task.cancel()
                 if self.connected_client:
                     await self.connected_client.send('{"status": "stopping"}')
-            else:
-                logger.warning("Received 'stop' command, but application is not running.")
-                if self.connected_client:
-                    await self.connected_client.send('{"status": "error", "message": "Application is not running."}')
+        else:
+            logger.warning("Received 'stop' command, but application is not running.")
+            if self.connected_client:
+                await self.connected_client.send('{"status": "error", "message": "Application is not running."}')
 
 
     async def handle_message(self, message: str):
@@ -146,10 +146,12 @@ class WebSocketServer:
 
     async def broadcast(self, data: bytes):
         """Sends data to connected client"""
-        # We use asyncio.wait to send to all clients concurrently
         if self.connected_client:
-            task = self.connected_client.send(data)
-            await asyncio.wait(task)
+            try:
+                await self.connected_client.send(data)
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning("Tried to broadcast to a client that has disconnected.")
+                self.connected_client = None # Clear the disconnected client
 
     async def start(self):
         """Start the WebSocket server."""
