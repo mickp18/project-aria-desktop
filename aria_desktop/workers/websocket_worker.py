@@ -1,20 +1,25 @@
 import asyncio
 import cv2
-import io
+from typing import Any, TYPE_CHECKING
 
-from websockets import WebSocketServer
+# Avoid a runtime import of WebSocketServer to prevent circular import.
+# Import only for type checking (no runtime dependency).
+if TYPE_CHECKING:
+    from ..server.server import WebSocketServer
+
 from ..utils.logger import logger
 from ..bus import AsyncEventBus
 
 class websocket_worker:
     
-    def __init__(self, bus: AsyncEventBus, server: WebSocketServer):
+    def __init__(self, bus: AsyncEventBus, server: Any):
         """
         Worker that handles WebSocket connections and broadcasts messages.
         """
         logger.info("WebSocket worker started, waiting for connections...")
         self.bus = bus
-        self.server = server
+        # Use a forward-referenced type for annotation above; accept Any at runtime.
+        self.server: Any = server
 
     async def forward_rgb(self):
         """Forwards RGB frames to connected WebSocket clients."""
@@ -30,8 +35,10 @@ class websocket_worker:
                     logger.warning("Failed to encode image to JPG")
                     continue
                 
-                image_bytes = io.BytesIO(buffer)
+                image_bytes = buffer.tobytes()
+                logger.info("Broadcasting RGB frame to WebSocket clients")
                 await self.server.broadcast(image_bytes)
+                logger.info("sent frame to clients")
         except asyncio.CancelledError:
             logger.info("WebSocket RGB forwarder shutting down.")
 
