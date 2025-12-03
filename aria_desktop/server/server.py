@@ -8,13 +8,15 @@ from ..bus import AsyncEventBus, Event
 from ..utils.config import config
 from ..core.client import AriaClient
 from ..core.streaming_handler import StreamingHandler
-from ..workers.websocket_worker import websocket_worker as ws_worker
+from ..workers.websocket_worker import  websocket_worker as ws_worker
+
+
 
 
 class WebSocketServer:
     def __init__(self, bus: AsyncEventBus):
         self.bus = bus
-        self.port = config.getint('websocket', 'port', fallback=8088)
+        self.port = config.getint('websocket', 'port', fallback=8080)
         self.task : asyncio.Task | None = None
         self.stop = asyncio.Event() 
         self.connected_client = None
@@ -74,6 +76,8 @@ class WebSocketServer:
                     await worker_task # Wait for the worker to actually cancel
                 except asyncio.CancelledError:
                     pass # Expected
+            if self.connected_client:
+                await self.connected_client.send('{"type": "STATUS_UPDATE", "payload": {"status": "stopped", "reason": "application shutdown"}}')
     
             logger.info("Application has shut down.")
 
@@ -87,11 +91,14 @@ class WebSocketServer:
             logger.warning("Received 'start' command, but application is already running.")
             if self.connected_client:
                 # Optional: Send feedback to client
-                await self.connected_client.send('{"status": "error", "message": "Application is already running."}')
+                # await self.connected_client.send('{"status": "error", "message": "Application is already running."}')
+                await self.connected_client.send('{"type": "ERROR_MSG", "payload": {"error": "already running", "reason": "Application is already running, can\'t start again.""}}')
+    
             return
         
         if self.connected_client:
-            await self.connected_client.send('{"status": "starting"}')
+            await self.connected_client.send('{"type": "STATUS_UPDATE", "payload": {"status": "starting"}}')
+    
         
         # Create task to start main desktop app functionality
         self.task = asyncio.create_task(self._run_app())
@@ -101,12 +108,13 @@ class WebSocketServer:
         if self.task and not self.task.done():
                 self.task.cancel()
                 if self.connected_client:
-                    await self.connected_client.send('{"status": "stopping"}')
+                    await self.connected_client.send('{"type": "STATUS_UPDATE", "payload": {"status": "stopped", "reason": "stop was requested by client"}}')
+    
         else:
             logger.warning("Received 'stop' command, but application is not running.")
             if self.connected_client:
-                await self.connected_client.send('{"status": "error", "message": "Application is not running."}')
-
+                await self.connected_client.send('{"type": "ERROR_MSG", "payload": {"error": "app not running", "reason": "Received stop command, but application is not running"}}')
+    
 
     async def handle_message(self, message: str):
         """Process incoming messages from clients."""
@@ -124,8 +132,8 @@ class WebSocketServer:
         else:
             logger.warning(f"Unknown message received: {message}")
             if self.connected_client:
-                await self.connected_client.send('{"status": "error", "message": "No application running to stop."}')
-        
+                await self.connected_client.send('{"type": "ERROR_MSG", "payload": {"error": "received unkown command", "reason": """}}')
+    
     
     async def client_handler(self, websocket):
         logger.info("client connected")
