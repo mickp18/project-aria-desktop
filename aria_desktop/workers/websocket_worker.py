@@ -36,9 +36,9 @@ class websocket_worker:
                     continue
                 
                 image_bytes = buffer.tobytes()
-                logger.info("Broadcasting RGB frame to WebSocket clients")
+                logger.debug("Broadcasting RGB frame to WebSocket clients")
                 await self.server.broadcast(image_bytes)
-                logger.info("sent frame to clients")
+                logger.debug("sent frame to clients")
         except asyncio.CancelledError:
             logger.info("WebSocket RGB forwarder shutting down.")
 
