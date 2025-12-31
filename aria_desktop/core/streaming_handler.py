@@ -101,7 +101,8 @@ class StreamingHandler:
     def get_streaming_state(self) -> aria.StreamingState:
         """Return the current streaming state."""
         logger.debug("Retrieving current streaming state")
-        print(f"Streaming state: {self.streaming_manager.streaming_state}")
+        logger.debug(f"Streaming state: {self.streaming_manager.streaming_state}")
+        # logger.info("straming using profile: {self.streaming_manager}")
         return self.streaming_manager.streaming_state
 
 

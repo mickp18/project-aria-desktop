@@ -30,15 +30,30 @@ class websocket_worker:
                 # Encode image to JPEG in memory
                 # We need to convert from RGB (from camera) to BGR (for cv2)
                 image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-                is_success, buffer = cv2.imencode(".jpg", image_bgr)
+                
+                # RESIZE: Downscale to 640px width (maintaining aspect ratio)
+                # This drastically reduces USB/Network load
+                height, width = image_bgr.shape[:2]
+                new_width = 640
+                new_height = int(height * (new_width / width))
+                image_resized = cv2.resize(image_bgr, (new_width, new_height))
+
+                # 3. Compress
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+                is_success, buffer = cv2.imencode(".jpg", image_resized, encode_param)
+                
                 if not is_success:
                     logger.warning("Failed to encode image to JPG")
                     continue
                 
                 image_bytes = buffer.tobytes()
-                logger.debug("Broadcasting RGB frame to WebSocket clients")
-                await self.server.broadcast(image_bytes)
-                logger.debug("sent frame to clients")
+
+                # logger.debug("Broadcasting RGB frame to WebSocket clients")
+                # Send with Timeout (Prevents server from hanging if network is full)
+                try:
+                    await asyncio.wait_for(self.server.broadcast(image_bytes), timeout=0.1)
+                except asyncio.TimeoutError:
+                    logger.warning("Network busy, skipping frame")
         except asyncio.CancelledError:
             logger.info("WebSocket RGB forwarder shutting down.")
 
