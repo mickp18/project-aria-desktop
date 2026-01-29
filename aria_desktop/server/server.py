@@ -97,40 +97,48 @@ class WebSocketServer:
         worker_task = asyncio.create_task(_ws_worker.forward_rgb())
 
         try:
-            video_source = cv2.VideoCapture(video_path)
+            # video_source = cv2.VideoCapture(video_path)
+            video_source = cv2.VideoCapture(0)# Use webcam for debug
             if not video_source.isOpened():
                 logger.error(f"Could not open video file at {video_path}. Exiting debug mode.")
                 return
 
             # Get video FPS to simulate real-time playback
             fps = video_source.get(cv2.CAP_PROP_FPS)
-            if fps <= 0: fps = 30 # fallback default
+            # if fps <= 0: fps = 30 # fallback default
+            logger.info(f"debugging at {fps} fps")
             frame_delay = 1.0 / fps
 
             success, image = video_source.read()
+            if not success:
+                logger.warning("Failed to get image from webcam")
+                
             frame_counter = 0
-            
-            logger.info(f"Starting playback of {video_path} at {fps} FPS")
+
+            # logger.info(f"Starting playback of {video_path} at {fps} FPS")
 
             while success:
                 # Check if we should stop (e.g. if task cancelled)
                 if self.stop.is_set():
                     break
 
-                if frame_counter % 10 == 0: # Adjust sampling as needed
-                    logger.debug(f"Queueing RGB frame {frame_counter} for inference")
-                    
-                    # image_to_send = np.rot90(image, 1, (1, 0))
-                    event = Event(event_type="rgb_frame", payload={"image": image, "record": None})
-                   
-                    # Use await here effectively or create_task, but sleep is crucial below
-                    await self.bus.publish(event)
-
+                # if frame_counter % 10 == 0: # Adjust sampling as needed
+                # logger.debug(f"Queueing RGB frame {frame_counter} for inference")
+                img_rgb = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+                # image_to_send = np.rot90(image, 1, (1, 0))
+                event = Event(event_type="rgb_frame", payload={"image": img_rgb, "record": None})
+                
+                # Use await here effectively or create_task, but sleep is crucial below
+                await self.bus.publish(event)
+                # await self.send(img_rgb.tobytes())
                 # CRITICAL: Sleep to mimic frame rate AND yield control to asyncio loop
                 # This allows the worker_task to wake up and send the frame
                 await asyncio.sleep(frame_delay)
 
                 success, image = video_source.read()
+                if not success:
+                    logger.warning("Failed to get image from webcam")
+                logger.debug(f"frame count: {frame_counter}")
                 frame_counter += 1
 
             logger.info(f"Finished processing video frames: {frame_counter}")
@@ -237,17 +245,29 @@ class WebSocketServer:
 
     async def send(self, data: bytes):
         """Sends data to connected client"""
+        # loop = asyncio.get_event_loop()
         if self.connected_client:
             try:
                 await self.connected_client.send(data)
-                logger.debug("sent frame to client..")
-                #  asyncio.create_task(self.connected_client.send(data))
+              
             except websockets.exceptions.ConnectionClosed:
                 logger.warning("Tried to send to a client that has disconnected.")
                 self.connected_client = None # Clear the disconnected client
+            except Exception as e:
+                logger.error(f"Error sending data: {e}")
+                self.connected_client = None
 
     async def start(self):
         """Start the WebSocket server."""
         logger.info(f"Starting WebSocket server on ws://0.0.0.0:{self.port}")
-        server = await websockets.serve(self.client_handler, "0.0.0.0", self.port)
+        server = await websockets.serve(
+            self.client_handler,
+            "0.0.0.0",
+            self.port,
+            max_size=2*1024*1024,  # 2 MB,
+            write_limit=2**176,  # 128 KB,
+            ping_interval=20,
+            ping_timeout=20,
+            close_timeout=10
+        )
         await server.wait_closed()

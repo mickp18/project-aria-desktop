@@ -34,7 +34,12 @@ class StreamingObserver():
                 image_to_send = np.rot90(image, 1, (1, 0)) # Rotate 90 degrees clockwise
                 event = Event(event_type="rgb_frame", payload={"image": image_to_send, "record": record})
                 # asyncio.create_task(self.bus.publish(event))
-                asyncio.run_coroutine_threadsafe(self.bus.publish(event),self. loop)
+                # Use drop_old=True if you use Solution 1
+                asyncio.run_coroutine_threadsafe(
+                    self.bus.publish(event), 
+                    self.loop
+                )
+
 
     def on_imu_received(self, samples: Sequence[MotionData], imu_idx: int) -> None:
         pass
