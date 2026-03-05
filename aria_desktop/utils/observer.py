@@ -27,14 +27,13 @@ class StreamingObserver():
         if record.camera_id == aria.CameraId.Rgb:
             self.rgb_counter += 1
             # --- Only send every Nth frame to avoid overwhelming the server ---
-            if self.rgb_counter % 5 == 0: # e.g., send one frame per second
+            if self.rgb_counter % 2 == 0: 
                 logger.debug(f"Queueing RGB frame {self.rgb_counter} for inference")
 
                 # Apply rotation
                 image_to_send = np.rot90(image, 1, (1, 0)) # Rotate 90 degrees clockwise
                 event = Event(event_type="rgb_frame", payload={"image": image_to_send, "record": record})
                 # asyncio.create_task(self.bus.publish(event))
-                # Use drop_old=True if you use Solution 1
                 asyncio.run_coroutine_threadsafe(
                     self.bus.publish(event), 
                     self.loop
