@@ -44,7 +44,7 @@ class WebSocketServer:
             client = AriaClient()
             
             # Start the pairing process
-            await client.pair()
+           # await client.pair()
             
             # Connect to the device
             device = await client.connect()
@@ -62,7 +62,8 @@ class WebSocketServer:
 
                     # start streaming
                     streaming_handler = StreamingHandler(device, self.bus, loop)
-                    await streaming_handler.start_streaming()
+                    await streaming_handler.start_streaming(self.connected_client)
+                    
 
             else:
                 logger.error("Could not connect to device. Exiting.")
@@ -97,15 +98,18 @@ class WebSocketServer:
         worker_task = asyncio.create_task(_ws_worker.forward_rgb())
 
         try:
-            # video_source = cv2.VideoCapture(video_path)
-            video_source = cv2.VideoCapture(0)# Use webcam for debug
+            video_source = cv2.VideoCapture(video_path)
+            # video_source = cv2.VideoCapture(0)# Use webcam for debug
             if not video_source.isOpened():
                 logger.error(f"Could not open video file at {video_path}. Exiting debug mode.")
                 return
 
             # Get video FPS to simulate real-time playback
-            fps = video_source.get(cv2.CAP_PROP_FPS)
-            # if fps <= 0: fps = 30 # fallback default
+            fps = video_source.get(cv2.CAP_PROP_FPS) 
+            
+            desired_fps = 5
+            frame_limit =  fps / desired_fps # 5 fos
+            if fps <= 0 : fps = 1 # fallback default
             logger.info(f"debugging at {fps} fps")
             frame_delay = 1.0 / fps
 
@@ -122,18 +126,21 @@ class WebSocketServer:
                 if self.stop.is_set():
                     break
 
-                # if frame_counter % 10 == 0: # Adjust sampling as needed
-                # logger.debug(f"Queueing RGB frame {frame_counter} for inference")
-                img_rgb = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-                # image_to_send = np.rot90(image, 1, (1, 0))
-                event = Event(event_type="rgb_frame", payload={"image": img_rgb, "record": None})
-                
-                # Use await here effectively or create_task, but sleep is crucial below
-                await self.bus.publish(event)
-                # await self.send(img_rgb.tobytes())
-                # CRITICAL: Sleep to mimic frame rate AND yield control to asyncio loop
-                # This allows the worker_task to wake up and send the frame
-                await asyncio.sleep(frame_delay)
+                if frame_counter % 1 == 0: # Adjust sampling as needed
+                    # logger.debug(f"Queueing RGB frame {frame_counter} for inference")
+                    img_rgb = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+                    # image_to_send = np.rot90(image, 1, (1, 0))
+                    event = Event(event_type="rgb_frame", payload={"image": img_rgb, "record": None})
+                    window_name = "Debug Feed"
+                    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        
+                    cv2.imshow(window_name, image)
+                    
+                    # 3. REQUIRED: updates the GUI. 1ms delay is sufficient.
+                    cv2.waitKey(1)
+                    # Use await here effectively or create_task, but sleep is crucial below
+                    await self.bus.publish(event)
+                    await asyncio.sleep(frame_delay)
 
                 success, image = video_source.read()
                 if not success:
@@ -152,6 +159,7 @@ class WebSocketServer:
             logger.critical("An error occurred during debug application startup.", exc_info=True)
         finally:
             logger.info("Cleaning up tasks and connections...")
+            cv2.destroyAllWindows()
             if worker_task:
                 worker_task.cancel()
                 try:
@@ -160,7 +168,6 @@ class WebSocketServer:
                     pass
             
             if self.connected_client:
-                # Use a fire-and-forget approach or short timeout for cleanup to prevent hanging
                 close_msg = '{"type": "STATUS_UPDATE", "payload": {"status": "stopped", "reason": "application shutdown"}}'
                 asyncio.create_task(self.connected_client.send(close_msg))
     
