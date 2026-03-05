@@ -25,8 +25,9 @@ class websocket_worker:
         new_width = 800
         new_height = int(height * (new_width / width))
         image_resized = cv2.resize(image_bgr, (new_width, new_height))
-        encode_param = [int(cv2.IMWRITE_WEBP_QUALITY), 85]
-        is_success, buffer = cv2.imencode(".webp", image_resized, encode_param)
+        # encode_param = [int(cv2.IMWRITE_WEBP_QUALITY), 100]
+        # is_success, buffer = cv2.imencode(".webp", image_resized, encode_param)
+        is_success, buffer = cv2.imencode(".jpg", image_resized, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
         return is_success, buffer
 
     async def forward_rgb(self):
@@ -49,9 +50,9 @@ class websocket_worker:
                 # Rate limiting
                 current_time = loop.time()
                 time_since_last = current_time - self.last_send_time
-                if self.last_send_time > 0 and time_since_last < self.min_send_interval:
-                    logger.debug(f"Rate limiting: {time_since_last*1000:.0f}ms since last")
-                    continue
+                # if self.last_send_time > 0 and time_since_last < self.min_send_interval or frame_count == 0:
+                #     logger.debug(f"Rate limiting: {time_since_last*1000:.0f}ms since last")
+                #     continue
                 
                 self.sending = True
                 frame_start = loop.time()
