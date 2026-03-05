@@ -1,4 +1,5 @@
 import aria.sdk as aria
+from aria.sdk import DeviceStatus
 import asyncio
 
 from ..utils import handler
@@ -21,7 +22,7 @@ class StreamingHandler:
         logger.info("Configuring streaming settings")
         
         profile_name = config.get('streaming', 'profile_name', fallback='profile8')
-        logger.debug(f"Using streaming profile: {profile_name}")
+        logger.info(f"Using streaming profile: {profile_name}")
         
         # check for usb streaming interface set
         if config.get('streaming', 'streaming_interface', fallback='wifi') == 'usb':
@@ -29,6 +30,7 @@ class StreamingHandler:
             streaming_config.streaming_interface = aria.StreamingInterface.Usb
 
         streaming_config.profile_name = profile_name
+        logger.info(f"default profile: {device.status.default_recording_profile}")
         
         streaming_interface = config.get('streaming', 'streaming_interface', fallback='wifi')
         logger.debug(f"Using streaming interface: {streaming_interface}")   
@@ -67,7 +69,7 @@ class StreamingHandler:
             logger.error(f"Failed to stop streaming: {e}")
             
 
-    async def start_streaming(self):
+    async def start_streaming(self, connected_client):
         """Start the streaming session.Wait untill exit command to stop stream"""
         try:
             logger.info("Starting streaming session...")
@@ -82,10 +84,10 @@ class StreamingHandler:
             self.streaming_client.subscribe()
             logger.info("Subscribed to streaming data successfully.")
          
-
             logger.info("Streaming data... Press Ctrl+C to stop.")
            
-
+            if connected_client:
+                await connected_client.send('{"type": "STREAM_STARTED", "payload": {"status": "started", "reason": "starting streaming from sdk"}}')
             # This will wait forever until the task is cancelled (by Ctrl+C)
             await asyncio.Event().wait()
 
