@@ -27,7 +27,7 @@ class StreamingObserver():
         if record.camera_id == aria.CameraId.Rgb:
             self.rgb_counter += 1
             # --- Only send every Nth frame to avoid overwhelming the server ---
-            if self.rgb_counter % 2 == 0: 
+            if self.rgb_counter % 1 == 0: 
                 logger.debug(f"Queueing RGB frame {self.rgb_counter} for inference")
 
                 # Apply rotation

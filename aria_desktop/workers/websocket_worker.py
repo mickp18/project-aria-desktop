@@ -1,5 +1,6 @@
 import asyncio
 import cv2
+import numpy as np
 from typing import Any, TYPE_CHECKING
 
 # Avoid a runtime import of WebSocketServer to prevent circular import.
@@ -19,16 +20,45 @@ class websocket_worker:
         self.last_send_time = 0.0
         self.min_send_interval = 0.05  # 80ms between sends (allows up to ~12 FPS)
 
+    # def _process_image(self, image: Any) -> tuple[bool, Any]:
+    #     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    #     # height, width = image_bgr.shape[:2]
+    #     # new_width = 1024
+    #     # new_height = int(height * (new_width / width))
+    #     # image_resized = cv2.resize(image_bgr, (new_width, new_height))
+    #     # encode_param = [int(cv2.IMWRITE_WEBP_QUALITY), 100]
+    #     # is_success, buffer = cv2.imencode(".webp", image_resized, encode_param)
+    #     is_success, buffer = cv2.imencode(".jpg", image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+    #     return is_success, buffer
+
     def _process_image(self, image: Any) -> tuple[bool, Any]:
         image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        height, width = image_bgr.shape[:2]
-        new_width = 800
-        new_height = int(height * (new_width / width))
-        image_resized = cv2.resize(image_bgr, (new_width, new_height))
-        # encode_param = [int(cv2.IMWRITE_WEBP_QUALITY), 100]
-        # is_success, buffer = cv2.imencode(".webp", image_resized, encode_param)
-        is_success, buffer = cv2.imencode(".jpg", image_resized, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+
+        # ── Exposure correction ───────────────────────────────────────────────
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+        mean_brightness = float(np.mean(gray))
+
+        if mean_brightness >= 100:
+            # CLAHE on L channel — recovers local contrast on blown-out signs
+            # without darkening the rest of the frame
+            lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+            l_corrected = clahe.apply(l)
+            lab_corrected = cv2.merge([l_corrected, a, b])
+            image_bgr = cv2.cvtColor(lab_corrected, cv2.COLOR_LAB2BGR)
+
+            # Extra gamma pass for severely overexposed frames
+            if mean_brightness > 200:
+                lut = np.array(
+                    [(i / 255.0) ** 0.5 * 255 for i in range(256)],
+                    dtype=np.uint8
+                )
+                image_bgr = cv2.LUT(image_bgr, lut)
+
+        is_success, buffer = cv2.imencode(".jpg", image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
         return is_success, buffer
+
 
     async def forward_rgb(self):
         """Forwards RGB frames to connected WebSocket clients."""

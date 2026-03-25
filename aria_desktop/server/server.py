@@ -103,7 +103,7 @@ class WebSocketServer:
             if not video_source.isOpened():
                 logger.error(f"Could not open video file at {video_path}. Exiting debug mode.")
                 return
-
+            await self.connected_client.send('{"type": "STREAM_STARTED", "payload": {"status": "streaming_debug_video", "reason": "started streaming debug video from server"}}')
             # Get video FPS to simulate real-time playback
             fps = video_source.get(cv2.CAP_PROP_FPS) 
             

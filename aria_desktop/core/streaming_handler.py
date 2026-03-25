@@ -24,6 +24,8 @@ class StreamingHandler:
         profile_name = config.get('streaming', 'profile_name', fallback='profile8')
         logger.info(f"Using streaming profile: {profile_name}")
         
+
+
         # check for usb streaming interface set
         if config.get('streaming', 'streaming_interface', fallback='wifi') == 'usb':
             logger.debug("Setting streaming interface to USB")
@@ -40,9 +42,24 @@ class StreamingHandler:
        
         #    Use ephemeral streaming certificates
         streaming_config.security_options.use_ephemeral_certs = True
+        sub_config = aria.StreamingSubscriptionConfig()
         
-        self.streaming_manager.streaming_config = streaming_config
+        # 2. Specifically enable RGB and disable others if necessary
+        # Usually, they are False by default, but it's good practice to be explicit
+        sub_config.subscriber_data_type = aria.StreamingDataType.Rgb
+        sub_config.message_queue_size[aria.StreamingDataType.Imu] = 400
+        sub_config.message_queue_size[aria.StreamingDataType.Magneto] = 400
+        sub_config.message_queue_size[aria.StreamingDataType.Baro] = 400
+        # sub_config.message_queue_size[aria.StreamingDataType.Rgb] = 20
+        sub_config.message_queue_size[aria.StreamingDataType.EyeTrack] = 400
+        # 3. Assign the config object to the client
+        self.streaming_client.subscription_config = sub_config
 
+        streaming_config.rgb_isp_tuning_version = 1
+
+
+        self.streaming_manager.streaming_config = streaming_config
+      
 
     def get_streaming_manager(self) -> aria.StreamingManager:
         """Return the streaming manager instance."""
@@ -76,6 +93,7 @@ class StreamingHandler:
             self.streaming_manager.start_streaming()
             logger.info("Streaming session started successfully.")
 
+          
             # set observer
           
             observer = StreamingObserver(bus=self.event_bus, loop=self.loop)
