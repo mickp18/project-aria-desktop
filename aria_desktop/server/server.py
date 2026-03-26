@@ -1,5 +1,7 @@
 import websockets
 import asyncio
+import cv2
+import numpy as np
 
 from typing import Set
 
@@ -8,13 +10,18 @@ from ..bus import AsyncEventBus, Event
 from ..utils.config import config
 from ..core.client import AriaClient
 from ..core.streaming_handler import StreamingHandler
-from ..workers.websocket_worker import websocket_worker as ws_worker
+from ..workers.websocket_worker import  websocket_worker as ws_worker
+from ..utils.config import config
+
+
+DEBUG = config.getboolean('debug', 'enabled', fallback=False)
+
 
 
 class WebSocketServer:
     def __init__(self, bus: AsyncEventBus):
         self.bus = bus
-        self.port = config.getint('websocket', 'port', fallback=8088)
+        self.port = config.getint('websocket', 'port', fallback=8080)
         self.task : asyncio.Task | None = None
         self.stop = asyncio.Event() 
         self.connected_client = None
@@ -37,7 +44,7 @@ class WebSocketServer:
             client = AriaClient()
             
             # Start the pairing process
-            await client.pair()
+           # await client.pair()
             
             # Connect to the device
             device = await client.connect()
@@ -55,7 +62,8 @@ class WebSocketServer:
 
                     # start streaming
                     streaming_handler = StreamingHandler(device, self.bus, loop)
-                    await streaming_handler.start_streaming()
+                    await streaming_handler.start_streaming(self.connected_client)
+                    
 
             else:
                 logger.error("Could not connect to device. Exiting.")
@@ -74,8 +82,97 @@ class WebSocketServer:
                     await worker_task # Wait for the worker to actually cancel
                 except asyncio.CancelledError:
                     pass # Expected
+            if self.connected_client:
+                await self.connected_client.send('{"type": "STATUS_UPDATE", "payload": {"status": "stopped", "reason": "application shutdown"}}')
     
             logger.info("Application has shut down.")
+
+    async def _run_app_debug(self):
+        """Debug version, uses pre-recorded videostream."""
+        logger.debug("Starting debug version of the application.")
+        
+        video_path = config.get('debug', 'video_path', fallback='debug_video.mp4')
+        
+        # Start the worker
+        _ws_worker = ws_worker(self.bus, self)
+        worker_task = asyncio.create_task(_ws_worker.forward_rgb())
+
+        try:
+            video_source = cv2.VideoCapture(video_path)
+            # video_source = cv2.VideoCapture(0)# Use webcam for debug
+            if not video_source.isOpened():
+                logger.error(f"Could not open video file at {video_path}. Exiting debug mode.")
+                return
+            await self.connected_client.send('{"type": "STREAM_STARTED", "payload": {"status": "streaming_debug_video", "reason": "started streaming debug video from server"}}')
+            # Get video FPS to simulate real-time playback
+            fps = video_source.get(cv2.CAP_PROP_FPS) 
+            
+            desired_fps = 5
+            frame_limit =  fps / desired_fps # 5 fos
+            if fps <= 0 : fps = 1 # fallback default
+            logger.info(f"debugging at {fps} fps")
+            frame_delay = 1.0 / fps
+
+            success, image = video_source.read()
+            if not success:
+                logger.warning("Failed to get image from webcam")
+                
+            frame_counter = 0
+
+            # logger.info(f"Starting playback of {video_path} at {fps} FPS")
+
+            while success:
+                # Check if we should stop (e.g. if task cancelled)
+                if self.stop.is_set():
+                    break
+
+                if frame_counter % 1 == 0: # Adjust sampling as needed
+                    # logger.debug(f"Queueing RGB frame {frame_counter} for inference")
+                    img_rgb = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+                    # image_to_send = np.rot90(image, 1, (1, 0))
+                    event = Event(event_type="rgb_frame", payload={"image": img_rgb, "record": None})
+                    window_name = "Debug Feed"
+                    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        
+                    cv2.imshow(window_name, image)
+                    
+                    # 3. REQUIRED: updates the GUI. 1ms delay is sufficient.
+                    cv2.waitKey(1)
+                    # Use await here effectively or create_task, but sleep is crucial below
+                    await self.bus.publish(event)
+                    await asyncio.sleep(frame_delay)
+
+                success, image = video_source.read()
+                if not success:
+                    logger.warning("Failed to get image from webcam")
+                logger.debug(f"frame count: {frame_counter}")
+                frame_counter += 1
+
+            logger.info(f"Finished processing video frames: {frame_counter}")
+            
+            # Keep server alive after video ends, until externally stopped
+            await asyncio.Event().wait()
+            
+        except asyncio.CancelledError:
+            logger.info("Debug application stopped.")
+        except Exception as e:
+            logger.critical("An error occurred during debug application startup.", exc_info=True)
+        finally:
+            logger.info("Cleaning up tasks and connections...")
+            cv2.destroyAllWindows()
+            if worker_task:
+                worker_task.cancel()
+                try:
+                    await worker_task
+                except asyncio.CancelledError:
+                    pass
+            
+            if self.connected_client:
+                close_msg = '{"type": "STATUS_UPDATE", "payload": {"status": "stopped", "reason": "application shutdown"}}'
+                asyncio.create_task(self.connected_client.send(close_msg))
+    
+            logger.info("Debug application has shut down.")
+
 
     async def handle_start(self):
         """Handle start command from client."""
@@ -87,26 +184,35 @@ class WebSocketServer:
             logger.warning("Received 'start' command, but application is already running.")
             if self.connected_client:
                 # Optional: Send feedback to client
-                await self.connected_client.send('{"status": "error", "message": "Application is already running."}')
+                # await self.connected_client.send('{"status": "error", "message": "Application is already running."}')
+                await self.connected_client.send('{"type": "ERROR_MSG", "payload": {"error": "already running", "reason": "Application is already running, can\'t start again.""}}')
+    
             return
         
         if self.connected_client:
-            await self.connected_client.send('{"status": "starting"}')
+            await self.connected_client.send('{"type": "STATUS_UPDATE", "payload": {"status": "starting"}}')
+    
         
         # Create task to start main desktop app functionality
-        self.task = asyncio.create_task(self._run_app())
+        if DEBUG:
+            logger.debug("Starting application in DEBUG mode.")
+            self.task = asyncio.create_task(self._run_app_debug())
+        else:
+            logger.info("Starting application in normal mode.")
+            self.task = asyncio.create_task(self._run_app())
 
     async def handle_stop(self):
         """Handle stop command from client."""
         if self.task and not self.task.done():
                 self.task.cancel()
                 if self.connected_client:
-                    await self.connected_client.send('{"status": "stopping"}')
+                    await self.connected_client.send('{"type": "STATUS_UPDATE", "payload": {"status": "stopped", "reason": "stop was requested by client"}}')
+    
         else:
             logger.warning("Received 'stop' command, but application is not running.")
             if self.connected_client:
-                await self.connected_client.send('{"status": "error", "message": "Application is not running."}')
-
+                await self.connected_client.send('{"type": "ERROR_MSG", "payload": {"error": "app not running", "reason": "Received stop command, but application is not running"}}')
+    
 
     async def handle_message(self, message: str):
         """Process incoming messages from clients."""
@@ -124,8 +230,8 @@ class WebSocketServer:
         else:
             logger.warning(f"Unknown message received: {message}")
             if self.connected_client:
-                await self.connected_client.send('{"status": "error", "message": "No application running to stop."}')
-        
+                await self.connected_client.send('{"type": "ERROR_MSG", "payload": {"error": "received unkown command", "reason": """}}')
+    
     
     async def client_handler(self, websocket):
         logger.info("client connected")
@@ -144,17 +250,31 @@ class WebSocketServer:
             # self.connected_clients.remove(websocket)
             self.connected_client = None
 
-    async def broadcast(self, data: bytes):
+    async def send(self, data: bytes):
         """Sends data to connected client"""
+        # loop = asyncio.get_event_loop()
         if self.connected_client:
             try:
                 await self.connected_client.send(data)
+              
             except websockets.exceptions.ConnectionClosed:
-                logger.warning("Tried to broadcast to a client that has disconnected.")
+                logger.warning("Tried to send to a client that has disconnected.")
                 self.connected_client = None # Clear the disconnected client
+            except Exception as e:
+                logger.error(f"Error sending data: {e}")
+                self.connected_client = None
 
     async def start(self):
         """Start the WebSocket server."""
         logger.info(f"Starting WebSocket server on ws://0.0.0.0:{self.port}")
-        server = await websockets.serve(self.client_handler, "0.0.0.0", self.port)
+        server = await websockets.serve(
+            self.client_handler,
+            "0.0.0.0",
+            self.port,
+            max_size=2*1024*1024,  # 2 MB,
+            write_limit=2**176,  # 128 KB,
+            ping_interval=20,
+            ping_timeout=20,
+            close_timeout=10
+        )
         await server.wait_closed()
